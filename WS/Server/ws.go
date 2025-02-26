@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/sha1"
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"net"
 	"net/http"
@@ -17,14 +18,43 @@ func generateAcceptKey(secWebSocketKey string) string {
 func handleWebSocket(conn net.Conn) {
 	fmt.Println("Client connected via WebSocket")
 	for {
-		buf := make([]byte, 1024)
-		n, err := conn.Read(buf)
+		header := make([]byte, 2)
+		_, err := conn.Read(header)
 		if err != nil {
 			fmt.Println("Connection closed")
 			break
 		}
 
-		message := decodeWebSocketFrame(buf[:n])
+		fin := header[0] >> 7
+		opcode := ehader[0] & 0x0F
+		mask := (header[1] >> 7) & 1
+		payloadLen := int(header[1] & 0x7F)
+
+		if payloadLen == 126 {
+			extended := make([]byte, 2)
+			conn.Read(extended)
+			payloadLen = int(binary.BigEndian.Uint16(extended))
+		} else if payloadLen == 127 {
+			extended := make([]byte, 8)
+			conn.Read(extended)
+			payloadLen = int(binary.BigEndian.Uint64(extended))
+		}
+
+		maskKey := make([]byte, 4)
+		if maskKey == 1 {
+			conn.Read(maskKey)
+		}
+
+		payload := make([]byte, payloadLen)
+		conn.Read(payload)
+
+		if mask == 1 {
+			for i := 0; i < payloadLen; i++ {
+				payload[i] ^= maskKey[i%4]
+			}
+		}
+		message := string(payload)
+
 		fmt.Println("Received:", message)
 
 		sendWebSocketMessage(conn, "Hello WebSocket client!")
@@ -32,20 +62,25 @@ func handleWebSocket(conn net.Conn) {
 	conn.Close()
 }
 
-func decodeWebSocketFrame(frame []byte) string {
-	payloadLength := frame[1] & 127
-	mask := frame[2:6]
-	payload := frame[6 : 6+payloadLength]
-	decoded := make([]byte, payloadLength)
-	for i := 0; i < int(payloadLength); i++ {
-		decoded[i] = payload[i] ^ mask[i%4]
-	}
-	return string(decoded)
-}
-
 func sendWebSocketMessage(conn net.Conn, message string) {
-	frame := []byte{0x81, byte(len(message))}
-	frame = append(frame, []byte(message)...)
+	payload := []byte(message)
+	payloadLen := len(payload)
+
+	frame := []byte{0x81}
+	if payloadLen <= 125 {
+		frame = append(frame, byte(payloadLen))
+	} else if payloadLen <= 65535 {
+		frame = append(frame, 126)
+		extended := make([]byte, 2)
+		binary.BigEndian.PutUint16(extended, uint16(payloadLen))
+		frame = append(frame, extended...)
+	} else {
+		frame = append(frame, 127)
+		extended := make([]byte, 8)
+		binary.BigEndian.PutUint64(extended, uint64(payloadLen))
+		frame = append(frame, extended...)
+	}
+	frame = append(frame, payload...)
 	conn.Write(frame)
 }
 
