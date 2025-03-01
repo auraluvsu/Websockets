@@ -30,6 +30,7 @@ func main() {
 	}
 
 	fmt.Println("Server response:", response)
+
 	go func() {
 		for {
 			var message string
@@ -37,7 +38,7 @@ func main() {
 			fmt.Scan(&message)
 			frame := append([]byte{0x81, byte(len(message))}, []byte(message)...)
 			conn.Write(frame)
-			time.Sleep(2 * time.Second)
+			time.Sleep(3 * time.Second)
 		}
 	}()
 
@@ -48,6 +49,7 @@ func main() {
 			log.Println("Server closed the connection")
 			break
 		}
+		time.Sleep(2 * time.Second)
 		fmt.Println("Received from server:", string(buf[:n]))
 	}
 }
