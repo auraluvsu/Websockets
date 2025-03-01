@@ -15,6 +15,18 @@ func generateAcceptKey(secWebSocketKey string) string {
 	return base64.StdEncoding.EncodeToString(hash[:])
 }
 
+func readFullPayload(conn net.Conn, payload []byte) error {
+	totalRead := 0
+	for totalRead < len(payload) {
+		n, err := conn.Read(payload[totalRead:])
+		if err != nil {
+			return err
+		}
+		totalRead += n
+	}
+	return nil
+}
+
 func handleWebSocket(conn net.Conn) {
 	fmt.Println("Client connected via WebSocket")
 	for {
@@ -25,8 +37,6 @@ func handleWebSocket(conn net.Conn) {
 			break
 		}
 
-		fin := header[0] >> 7
-		opcode := ehader[0] & 0x0F
 		mask := (header[1] >> 7) & 1
 		payloadLen := int(header[1] & 0x7F)
 
@@ -41,12 +51,15 @@ func handleWebSocket(conn net.Conn) {
 		}
 
 		maskKey := make([]byte, 4)
-		if maskKey == 1 {
+		if mask == 1 {
 			conn.Read(maskKey)
 		}
 
 		payload := make([]byte, payloadLen)
-		conn.Read(payload)
+		err = readFullPayload(conn, payload)
+		if err != nil {
+			fmt.Println("Error reading payload:", err)
+		}
 
 		if mask == 1 {
 			for i := 0; i < payloadLen; i++ {
