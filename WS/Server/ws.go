@@ -9,13 +9,13 @@ import (
 	"net/http"
 )
 
-func generateAcceptKey(secWebSocketKey string) string {
+func GenerateAcceptKey(secWebSocketKey string) string {
 	GUID := "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 	hash := sha1.Sum([]byte(secWebSocketKey + GUID))
 	return base64.StdEncoding.EncodeToString(hash[:])
 }
 
-func readFullPayload(conn net.Conn, payload []byte) error {
+func ReadFullPayload(conn net.Conn, payload []byte) error {
 	totalRead := 0
 	for totalRead < len(payload) {
 		n, err := conn.Read(payload[totalRead:])
@@ -27,7 +27,7 @@ func readFullPayload(conn net.Conn, payload []byte) error {
 	return nil
 }
 
-func handleWebSocket(conn net.Conn) {
+func HandleWebSocket(conn net.Conn) {
 	fmt.Println("Client connected via WebSocket")
 	for {
 		header := make([]byte, 2)
@@ -56,7 +56,7 @@ func handleWebSocket(conn net.Conn) {
 		}
 
 		payload := make([]byte, payloadLen)
-		err = readFullPayload(conn, payload)
+		err = ReadFullPayload(conn, payload)
 		if err != nil {
 			fmt.Println("Error reading payload:", err)
 		}
@@ -70,12 +70,12 @@ func handleWebSocket(conn net.Conn) {
 
 		fmt.Println("Received:", message)
 
-		sendWebSocketMessage(conn, "Hello WebSocket client!")
+		SendWebSocketMessage(conn, "Hello WebSocket client!")
 	}
 	conn.Close()
 }
 
-func sendWebSocketMessage(conn net.Conn, message string) {
+func SendWebSocketMessage(conn net.Conn, message string) {
 	payload := []byte(message)
 	payloadLen := len(payload)
 
@@ -97,14 +97,14 @@ func sendWebSocketMessage(conn net.Conn, message string) {
 	conn.Write(frame)
 }
 
-func handleConnection(w http.ResponseWriter, r *http.Request) {
+func HandleConnection(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Upgrade") != "websocket" {
 		http.Error(w, "Upgrader header required", http.StatusUpgradeRequired)
 		return
 	}
 
 	secWebSocketKey := r.Header.Get("Sec-WebSocket-Key")
-	acceptKey := generateAcceptKey(secWebSocketKey)
+	acceptKey := GenerateAcceptKey(secWebSocketKey)
 	hj, ok := w.(http.Hijacker)
 	if !ok {
 		http.Error(w, "WebSocket upgrade failed", http.StatusInternalServerError)
@@ -122,5 +122,5 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 		"Connection: Upgrade\r\n"+
 		"Sec-WebSocket-Accept: %s\r\n\r\n", acceptKey)
 	conn.Write([]byte(response))
-	handleWebSocket(conn)
+	HandleWebSocket(conn)
 }
