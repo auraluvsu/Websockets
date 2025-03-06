@@ -1,4 +1,4 @@
-package main
+package ws
 
 import (
 	"crypto/sha1"
@@ -123,10 +123,4 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 		"Sec-WebSocket-Accept: %s\r\n\r\n", acceptKey)
 	conn.Write([]byte(response))
 	handleWebSocket(conn)
-}
-
-func main() {
-	http.HandleFunc("/ws", handleConnection)
-	fmt.Println("WebSocket server running on ws://localhost:2808/ws")
-	http.ListenAndServe(":2808", nil)
 }
